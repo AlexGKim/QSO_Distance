@@ -19,6 +19,20 @@ def qsoData():
 	return hdul['QSO_CAT'].data
 
 
+def matchTable():
+	query = """
+		SELECT TOP 1 oid, ra, dec, DISTANCE(POINT('ICRS',ra, dec), POINT('ICRS', 298.0025,29.87147)) as dist
+		FROM ztf_objects_dr18
+		WHERE CONTAINS(POINT('ICRS',ra, dec), CIRCLE('ICRS',298.0025,29.87147,{0}))=1
+		ORDER BY dist
+		""".format(radius_degree)
+	print(query)
+	payload = {"QUERY": query, "outfmt":1}
+	r = requests.get('https://irsa.ipac.caltech.edu/TAP/sync', params=payload)
+	print(r.text)
+
+
+
 def matchObjects():
 
 	cols = {"oid": numpy.ulonglong, "ra": numpy.double, "dec": numpy.double, "clon": object, "clat": object, "dist": numpy.double,"angle": numpy.double}
@@ -79,4 +93,4 @@ def main2():
 	array = table.array
 
 if __name__ == '__main__':
-    sys.exit(matchObjects())
+    sys.exit(matchTable())
