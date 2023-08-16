@@ -5,32 +5,85 @@ import urllib
 import pandas
 import numpy
 from astropy.io import fits
+from astropy.io import ascii
+
+'''
+
+Steps
+
+1. Convert DESI QSO list to an IPAC Table:		qsoToTable()
+2. Get ZTF objects in IPAC Table into xxx asynchronously: tableToObjects()
+3. Get LCs of ZTF objects in matched Table
+
+'''
 
 radius_arcsec = 0.5
 radius_degree = radius_arcsec/3600
 desistart = 59197   # Dec 14 2020 first night of iron
 
-def qsoData():
-	fname = "../data/QSO_cat_iron_main_dark_healpix_v0.fits"
-	hdul = fits.open(fname,memmap=True)
+uploadFile = "upload.tbl"
+returnFile = "fp_psc.tbl"
 
-	# coords['Q1']=(298.0025, 29.87147)
-	# coords['Q2']=(269.84158, 45.35492)
-	return hdul['QSO_CAT'].data
+# IRSA database query accepts IPAC Table
+# https://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html
+def qsoToTable():
+	# fname = "../data/QSO_cat_iron_main_dark_healpix_v0.fits"
+	# hdul = fits.open(fname,memmap=True)
+
+	head = """
+|  my_ra     |   my_dec   |      targetid        |
+|  double    |   double   |      long            |
+|   deg      |   deg      |                      |
+|   null     |   null     |      null            |
+"""
+	with open(uploadFile, 'w') as f:
+		f.write(head)
+		f.write("{:12} {:12} {:22}\n".format(298.0025, 29.87147, 42))
+		f.write("{:12} {:12} {:22}\n".format(269.84158, 45.35492, 21))
 
 
-def matchTable():
+	# # coords['Q1']=(298.0025, 29.87147)
+	# # coords['Q2']=(269.84158, 45.35492)
+	# return hdul['QSO_CAT'].data
+
+
+
+def tableToObjects():
 	query = """
-		SELECT TOP 1 oid, ra, dec, DISTANCE(POINT('ICRS',ra, dec), POINT('ICRS', 298.0025,29.87147)) as dist
+		SELECT TOP 1 oid, ra, dec, DISTANCE(POINT('ICRS',ra, dec), POINT('ICRS',TAP_UPLOAD.my_table.ra,TAP_UPLOAD.my_table.dec)) as dist
 		FROM ztf_objects_dr18
-		WHERE CONTAINS(POINT('ICRS',ra, dec), CIRCLE('ICRS',298.0025,29.87147,{0}))=1
+		WHERE CONTAINS(POINT('ICRS',ra, dec), CIRCLE('ICRS',TAP_UPLOAD.my_table.ra,TAP_UPLOAD.my_table.dec,{0}))=1
 		ORDER BY dist
 		""".format(radius_degree)
 	print(query)
-	payload = {"QUERY": query, "outfmt":1}
-	r = requests.get('https://irsa.ipac.caltech.edu/TAP/sync', params=payload)
+	payload = {"QUERY": query, "FORMAT":"IPAC_TABLE", "UPLOAD": "my_table,param:table.tbl", "table.tbl":"@upload.tbl"}
+	params = urllib.parse.urlencode(payload, quote_via=urllib.parse.quote) 
+	# r = requests.get('https://irsa.ipac.caltech.edu/TAP/sync', params=payload)
+	q = "https://irsa.ipac.caltech.edu/TAP/sync?UPLOAD=my_table,param:table.tbl&table.tbl=@upload.tbl&FORMAT=IPAC_TABLE&QUERY=SELECT ra, dec FROM ztf_objects_dr18 WHERE CONTAINS(POINT('J2000',ra,dec), CIRCLE('J2000',TAP_UPLOAD.my_table.my_ra, TAP_UPLOAD.my_table.my_dec, 0.01)) =1"
+	r = requests.get(q)
+	print(r.url)
 	print(r.text)
 
+
+def objectsToLCs():
+
+	data = ascii.read(returnFile)
+	df = data.to_pandas()
+
+	# query to IPAC Helpdesk says only one position per query available
+	for t in df.itertuples():
+		print(t.oid)
+		payload = {"ID": t.oid, \
+			"BAD_CATFLAGS_MASK": 32768}
+
+		# params = urllib.parse.urlencode(payload, quote_via=urllib.parse.quote) 
+
+		r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=payload)
+		print(r.url, r.text)
+		# text_file = open("{}.xml".format(row[0]), "wt")
+		# n = text_file.write(r.text)
+		# text_file.close()
+		wef
 
 
 def matchObjects():
@@ -68,24 +121,6 @@ def matchObjects():
 	dfs = pandas.concat(frames)
 	print(dfs.shape[0])
 
-
-def getLCs():
-	coords = qsoCoords()
-	# query to IPAC Helpdesk says only one position per query available
-
-	for k, coord in coords.items():
-		payload = {"POS": "CIRCLE {} {} {}".format(coord[0], coord[1], radius), \
-			"BAD_CATFLAGS_MASK": 32768}
-
-		params = urllib.parse.urlencode(payload, quote_via=urllib.parse.quote) 
-
-		r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=params)
-
-		text_file = open("{}_{}.xml".format(coord[0],coord[1]), "wt")
-		n = text_file.write(r.text)
-		text_file.close()
-
-
 def main2():
 	from astropy.io.votable import parse
 	votable = parse("269.84158_45.35492.xml")
@@ -93,4 +128,4 @@ def main2():
 	array = table.array
 
 if __name__ == '__main__':
-    sys.exit(matchTable())
+    sys.exit(objectsToLCs())
