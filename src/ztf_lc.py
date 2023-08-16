@@ -4,17 +4,19 @@ import requests
 import urllib
 import pandas
 import numpy
+from astropy.io import fits
 
 radius_arcsec = 0.5
 radius_degree = radius_arcsec/3600
 desistart = 59197   # Dec 14 2020 first night of iron
 
-def qsoCoords():
-	coords=dict()
-	coords['Q0']=(0,0)
-	coords['Q1']=(298.0025, 29.87147)
-	coords['Q2']=(269.84158, 45.35492)
-	return coords
+def qsoData():
+	fname = "../data/QSO_cat_iron_main_dark_healpix_v0.fits"
+	hdul = fits.open(fname,memmap=True)
+
+	# coords['Q1']=(298.0025, 29.87147)
+	# coords['Q2']=(269.84158, 45.35492)
+	return hdul['QSO_CAT'].data
 
 
 def matchObjects():
@@ -24,10 +26,12 @@ def matchObjects():
 	for key in emptySeries.keys():
 		emptySeries[key] = None
 
-
+	# coords = qsoCoords()
+	qsodata = qsoData()
 	frames=[]
-	coords = qsoCoords()
-	for k, coord in coords.items():
+	for d in qsodata:
+		k = d['TARGETID'];  coord=(d['TARGET_RA'],d['TARGET_DEC'])
+	# for k, coord in coords.items():
 		payload = {"catalog": "ztf_objects_dr18", "spatial": "cone", "objstr": "{} {}".format(coord[0], coord[1]), \
 			"radius": radius_arcsec, "radunits": "arcsec", "outfmt":1, "selcols": "oid,ra,dec"}
 		r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query', params=payload)
@@ -42,8 +46,10 @@ def matchObjects():
 		if df.shape[0] ==0:
 			df.append(emptySeries, ignore_index=True)
 
-		df['desi_objid']=[k] 
+		df['desi_targetid']=[k] 
 		frames.append(df)
+		print(df)
+		wef
 
 	dfs = pandas.concat(frames)
 	print(dfs.shape[0])
