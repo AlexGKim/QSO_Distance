@@ -22,7 +22,7 @@ radius_degree = radius_arcsec/3600
 desistart = 59197   # Dec 14 2020 first night of iron
 
 uploadFile = "upload.tbl"
-returnFile = "out.tbl"
+returnFile = "out_test.tbl"
 
 # IRSA database query accepts IPAC Table
 # https://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html
@@ -46,7 +46,7 @@ def qsoToTable():
 
 def tableToObjects():
 
-	query = 'curl -o out.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec -F outfmt=1 "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
+	query = 'curl -o out.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec,ngoodobsrel -F outfmt=1 -Fconstraints=ngoodobsrel\>0 "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
 	# query = """
 	# 	SELECT TOP 1 oid, ra, dec, DISTANCE(POINT('ICRS',ra, dec), POINT('ICRS',TAP_UPLOAD.my_table.ra,TAP_UPLOAD.my_table.dec)) as dist
 	# 	FROM ztf_objects_dr18
@@ -72,13 +72,13 @@ def objectsToLCs():
 	# query to IPAC Helpdesk says only one position per query available
 	for t in df.itertuples():
 		print(t.oid)
-		payload = {"ID": t.oid, \
-			"BAD_CATFLAGS_MASK": 32768}
+		payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768}
 
 		# params = urllib.parse.urlencode(payload, quote_via=urllib.parse.quote) 
 
 		r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=payload)
-		print(r.url, r.text)
+		print(r.url)
+		print(r.text)
 		# text_file = open("{}.xml".format(row[0]), "wt")
 		# n = text_file.write(r.text)
 		# text_file.close()
@@ -120,11 +120,5 @@ def matchObjects():
 	dfs = pandas.concat(frames)
 	print(dfs.shape[0])
 
-def main2():
-	from astropy.io.votable import parse
-	votable = parse("269.84158_45.35492.xml")
-	table = votable.get_first_table()
-	array = table.array
-
 if __name__ == '__main__':
-    sys.exit(qsoToTable())
+    sys.exit(objectsToLCs())
