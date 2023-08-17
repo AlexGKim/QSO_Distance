@@ -22,7 +22,7 @@ radius_degree = radius_arcsec/3600
 desistart = 59197   # Dec 14 2020 first night of iron
 
 uploadFile = "upload.tbl"
-returnFile = "out_test.tbl"
+returnFile = "temp.tbl"
 
 # IRSA database query accepts IPAC Table
 # https://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html
@@ -68,21 +68,15 @@ def objectsToLCs():
 
 	data = ascii.read(returnFile)
 	df = data.to_pandas()
+	df = df[df['oid'].notna()]
 
 	# query to IPAC Helpdesk says only one position per query available
 	for t in df.itertuples():
-		print(t.oid)
-		payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768}
-
-		# params = urllib.parse.urlencode(payload, quote_via=urllib.parse.quote) 
-
-		r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=payload)
-		print(r.url)
-		print(r.text)
-		# text_file = open("{}.xml".format(row[0]), "wt")
-		# n = text_file.write(r.text)
-		# text_file.close()
-		wef
+		if (pandas.notna(t.oid)):
+			payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768}
+			r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=payload)
+			with open("{}.tbl".format(t.targetid_01), "w") as f:
+				f.write(r.text)
 
 
 def matchObjects():
