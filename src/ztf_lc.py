@@ -29,15 +29,15 @@ returnFile = "out.tbl"
 def qsoToTable():
     fname = "/global/cfs/cdirs/desi/survey/catalogs/Y1/QSO/iron/QSO_cat_iron_main_dark_healpix_v0.fits"
     hdul = fits.open(fname,memmap=True)
-    head = """|    ra           |     dec          |      targetid         |
-|  double         |    double        |      long             |
-|   deg           |    deg           |                       |
-|   null          |    null          |      null             |
+    head = """|    ra      |     dec     |     targetid      |
+|  double    |    double   |      long         |
+|   deg      |    deg      |                   |
+|   null     |    null     |      null         |
 """
     with open(uploadFile, 'w') as f:
         f.write(head)
         for d in hdul['QSO_CAT'].data:
-            f.write("{:17.12f} {:18.12f} {:23d}\n".format(d['TARGET_RA'],d['TARGET_DEC'], d['TARGETID']))
+            f.write("{:12.7f} {:13.7f} {:19d}\n".format(d['TARGET_RA'],d['TARGET_DEC'], d['TARGETID']))
 	# # coords['Q1']=(298.0025, 29.87147)
 	# # coords['Q2']=(269.84158, 45.35492)
 	# return hdul['QSO_CAT'].data
@@ -61,7 +61,7 @@ def tableToObjects():
 	# r = requests.get(q)
 	# print(r.url)
 	# print(r.text)
-	print query
+	print(query)
 
 
 def objectsToLCs():
