@@ -22,26 +22,22 @@ radius_degree = radius_arcsec/3600
 desistart = 59197   # Dec 14 2020 first night of iron
 
 uploadFile = "upload.tbl"
-returnFile = "fp_psc.tbl"
+returnFile = "out.tbl"
 
 # IRSA database query accepts IPAC Table
 # https://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html
 def qsoToTable():
-	# fname = "../data/QSO_cat_iron_main_dark_healpix_v0.fits"
-	# hdul = fits.open(fname,memmap=True)
-
-	head = """
-|  my_ra     |   my_dec   |      targetid        |
-|  double    |   double   |      long            |
-|   deg      |   deg      |                      |
-|   null     |   null     |      null            |
+    fname = "/global/cfs/cdirs/desi/survey/catalogs/Y1/QSO/iron/QSO_cat_iron_main_dark_healpix_v0.fits"
+    hdul = fits.open(fname,memmap=True)
+    head = """|    ra           |     dec          |      targetid         |
+|  double         |    double        |      long             |
+|   deg           |    deg           |                       |
+|   null          |    null          |      null             |
 """
-	with open(uploadFile, 'w') as f:
-		f.write(head)
-		f.write("{:12} {:12} {:22}\n".format(298.0025, 29.87147, 42))
-		f.write("{:12} {:12} {:22}\n".format(269.84158, 45.35492, 21))
-
-
+    with open(uploadFile, 'w') as f:
+        f.write(head)
+        for d in hdul['QSO_CAT'].data:
+            f.write("{:17.12f} {:18.12f} {:23d}\n".format(d['TARGET_RA'],d['TARGET_DEC'], d['TARGETID']))
 	# # coords['Q1']=(298.0025, 29.87147)
 	# # coords['Q2']=(269.84158, 45.35492)
 	# return hdul['QSO_CAT'].data
@@ -128,4 +124,4 @@ def main2():
 	array = table.array
 
 if __name__ == '__main__':
-    sys.exit(objectsToLCs())
+    sys.exit(qsoToTable())
