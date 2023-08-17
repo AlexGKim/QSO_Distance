@@ -49,20 +49,23 @@ def qsoToTable():
 
 
 def tableToObjects():
-	query = """
-		SELECT TOP 1 oid, ra, dec, DISTANCE(POINT('ICRS',ra, dec), POINT('ICRS',TAP_UPLOAD.my_table.ra,TAP_UPLOAD.my_table.dec)) as dist
-		FROM ztf_objects_dr18
-		WHERE CONTAINS(POINT('ICRS',ra, dec), CIRCLE('ICRS',TAP_UPLOAD.my_table.ra,TAP_UPLOAD.my_table.dec,{0}))=1
-		ORDER BY dist
-		""".format(radius_degree)
-	print(query)
-	payload = {"QUERY": query, "FORMAT":"IPAC_TABLE", "UPLOAD": "my_table,param:table.tbl", "table.tbl":"@upload.tbl"}
-	params = urllib.parse.urlencode(payload, quote_via=urllib.parse.quote) 
-	# r = requests.get('https://irsa.ipac.caltech.edu/TAP/sync', params=payload)
-	q = "https://irsa.ipac.caltech.edu/TAP/sync?UPLOAD=my_table,param:table.tbl&table.tbl=@upload.tbl&FORMAT=IPAC_TABLE&QUERY=SELECT ra, dec FROM ztf_objects_dr18 WHERE CONTAINS(POINT('J2000',ra,dec), CIRCLE('J2000',TAP_UPLOAD.my_table.my_ra, TAP_UPLOAD.my_table.my_dec, 0.01)) =1"
-	r = requests.get(q)
-	print(r.url)
-	print(r.text)
+
+	query = 'curl -o out.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec -F outfmt=1 "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
+	# query = """
+	# 	SELECT TOP 1 oid, ra, dec, DISTANCE(POINT('ICRS',ra, dec), POINT('ICRS',TAP_UPLOAD.my_table.ra,TAP_UPLOAD.my_table.dec)) as dist
+	# 	FROM ztf_objects_dr18
+	# 	WHERE CONTAINS(POINT('ICRS',ra, dec), CIRCLE('ICRS',TAP_UPLOAD.my_table.ra,TAP_UPLOAD.my_table.dec,{0}))=1
+	# 	ORDER BY dist
+	# 	""".format(radius_degree)
+	# print(query)
+	# payload = {"QUERY": query, "FORMAT":"IPAC_TABLE", "UPLOAD": "my_table,param:table.tbl", "table.tbl":"@upload.tbl"}
+	# params = urllib.parse.urlencode(payload, quote_via=urllib.parse.quote) 
+	# # r = requests.get('https://irsa.ipac.caltech.edu/TAP/sync', params=payload)
+	# q = "https://irsa.ipac.caltech.edu/TAP/sync?UPLOAD=my_table,param:table.tbl&table.tbl=@upload.tbl&FORMAT=IPAC_TABLE&QUERY=SELECT ra, dec FROM ztf_objects_dr18 WHERE CONTAINS(POINT('J2000',ra,dec), CIRCLE('J2000',TAP_UPLOAD.my_table.my_ra, TAP_UPLOAD.my_table.my_dec, 0.01)) =1"
+	# r = requests.get(q)
+	# print(r.url)
+	# print(r.text)
+	print query
 
 
 def objectsToLCs():
