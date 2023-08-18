@@ -25,7 +25,7 @@ desistart = 59197   # Dec 14 2020 first night of iron
 lc_window = 5. # +/- days
 
 uploadFile = "upload.tbl"
-returnFile = "output.tbl"
+returnFile = "../data/output.tbl"
 
 # IRSA database query accepts IPAC Table
 # https://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html
@@ -66,8 +66,10 @@ def objectsToLCs():
     df = df[df['oid'].notna()]  # prune out DESI objects not returned by ZTF
 
     # query to IPAC Helpdesk says only one position per query available
+    globalcounter=0
     counter = 0
     for t in df.itertuples():
+        if (globalcounter % 10 == 0): print(globalcounter)
         mjd_desi= hdul['QSO_CAT'].data['COADD_FIRSTMJD'][hdul['QSO_CAT'].data['TARGETID']== t.targetid_01][0]
         payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(mjd_desi-lc_window, mjd_desi+lc_window)}
         params = urllib.parse.urlencode(payload,quote_via=urllib.parse.quote)
@@ -76,8 +78,9 @@ def objectsToLCs():
         if (not ans.empty):
             with open("{}.tbl".format(t.targetid_01), "w") as f:
                 f.write(r.text)
-            count = count+1
-        if count ==10:
+            counter = counter+1
+        globalcounter=globalcounter+1
+        if counter ==10:
             break
 
 
