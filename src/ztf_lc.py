@@ -58,7 +58,7 @@ def objectsToLCs():
 
 	# DESI information
 	fname = "/global/cfs/cdirs/desi/survey/catalogs/Y1/QSO/iron/QSO_cat_iron_main_dark_healpix_v0.fits"
-    hdul = fits.open(fname,memmap=True)
+	hdul = fits.open(fname,memmap=True)
 
     # ZTF information
 	data = ascii.read(returnFile)
@@ -77,7 +77,7 @@ def objectsToLCs():
 			with open("{}.tbl".format(t.targetid_01), "w") as f:
 				f.write(r.text)
 			count = count+1
-		if count ==1:
+		if count ==10:
 			break
 
 if __name__ == '__main__':
