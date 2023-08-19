@@ -7,6 +7,7 @@ import urllib
 from astropy.io import fits
 from astropy.io import ascii
 import matplotlib.pyplot as plt
+import psycopg2
 
 '''
 
@@ -24,8 +25,9 @@ desistart = 59197   # Dec 14 2020 first night of iron
 
 lc_window = 5. # +/- days
 
-uploadFile = "upload.tbl"
+uploadFile = "../upload.tbl"
 returnFile = "../data/output.tbl"
+lcDir = "../data/lc/"
 
 # IRSA database query accepts IPAC Table
 # https://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html
@@ -56,9 +58,14 @@ def tableToObjects():
 
 def objectsToLCs():
 
+
     # DESI information
     fname = "/global/cfs/cdirs/desi/survey/catalogs/Y1/QSO/iron/QSO_cat_iron_main_dark_healpix_v0.fits"
     hdul = fits.open(fname,memmap=True)
+
+    with open('/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt') as f:
+        file = f.read()
+        db_name, db_user, db_pwd, db_host = file.split()
 
     # ZTF information
     data = ascii.read(returnFile)
@@ -67,21 +74,27 @@ def objectsToLCs():
 
     # query to IPAC Helpdesk says only one position per query available
     globalcounter=0
-    counter = 0
     for t in df.itertuples():
-        if (globalcounter % 10 == 0): print(globalcounter)
-        mjd_desi= hdul['QSO_CAT'].data['COADD_FIRSTMJD'][hdul['QSO_CAT'].data['TARGETID']== t.targetid_01][0]
-        payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(mjd_desi-lc_window, mjd_desi+lc_window)}
-        params = urllib.parse.urlencode(payload,quote_via=urllib.parse.quote)
-        r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=params)
-        ans = pandas.read_csv(io.StringIO(r.text))
-        if (not ans.empty):
-            with open("{}.tbl".format(t.targetid_01), "w") as f:
-                f.write(r.text)
-            counter = counter+1
+        if (globalcounter % 1000 == 0): print(globalcounter)
+        
+        # get the dates this was observed by DESI
+        conn = psycopg2.connect(dbname=db_name, user=db_user, password=db_pwd, host=db_host)
+        cur = conn.cursor()
+        curr = """SELECT f.mjd
+            FROM iron.healpix_expfibermap f
+            WHERE targetid={} AND fiberstatus=0""".format(t.targetid_01)
+        cur.execute(curr)
+        mjd_desi = cur.fetchall()
+        for mjd in mjd_desi:
+#            mjd_desi= hdul['QSO_CAT'].data['COADD_FIRSTMJD'][hdul['QSO_CAT'].data['TARGETID']== t.targetid_01][0]
+            payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(mjd[0]-lc_window, mjd[0]+lc_window)}
+            params = urllib.parse.urlencode(payload,quote_via=urllib.parse.quote)
+            r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=params)
+            ans = pandas.read_csv(io.StringIO(r.text))
+            if (not ans.empty):
+                with open("{}/{}_{}.tbl".format(lcDir, t.targetid_01,mjd[0]), "w") as f:
+                    f.write(r.text)
         globalcounter=globalcounter+1
-        if counter ==10:
-            break
 
 
 if __name__ == '__main__':
