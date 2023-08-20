@@ -93,9 +93,9 @@ def objectsToLCs():
             continue
         desi_df = desi_df.groupby(['night']).mean().reset_index()
 
-        for index, row in desi_df.iterrows():
+        for row in desi_df.itertuples():
            # hdul['QSO_CAT'].data['COADD_FIRSTMJD'][hdul['QSO_CAT'].data['TARGETID']== t.targetid_01][0]
-            payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(row['mjd']-lc_window, row['mjd']+lc_window)}
+            payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(row.mjd-lc_window, row.mjd+lc_window)}
             params = urllib.parse.urlencode(payload,quote_via=urllib.parse.quote)
             r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=params)
             if r.status_code != requests.codes.ok:
@@ -106,7 +106,7 @@ def objectsToLCs():
 
             ans = pandas.read_csv(io.StringIO(r.text))
             if (not ans.empty):
-                with open("{}/{}_{}.tbl".format(lcDir, t.targetid_01,row['night']), "w") as f:
+                with open("{}/{}_{}.tbl".format(lcDir, t.targetid_01,row.night), "w") as f:
                     f.write(r.text)
         globalcounter=globalcounter+1
 
