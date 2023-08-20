@@ -7,8 +7,8 @@ import urllib
 from astropy.io import fits
 from astropy.io import ascii
 import matplotlib.pyplot as plt
-import psycopg2
-
+import sqlalchemy
+import pandas.io.sql as sqlio
 '''
 
 Steps
@@ -23,7 +23,7 @@ radius_arcsec = 0.5
 radius_degree = radius_arcsec/3600
 desistart = 59197   # Dec 14 2020 first night of iron
 
-lc_window = 5. # +/- days
+lc_window = 5.5 # +/- days
 
 uploadFile = "../upload.tbl"
 returnFile = "../data/output.tbl"
@@ -75,24 +75,44 @@ def objectsToLCs():
     # query to IPAC Helpdesk says only one position per query available
     globalcounter=0
     for t in df.itertuples():
-        if (globalcounter % 1000 == 0): print(globalcounter)
+        # if (globalcounter % 1000 == 0): print(globalcounter)
         
         # get the dates this was observed by DESI
-        conn = psycopg2.connect(dbname=db_name, user=db_user, password=db_pwd, host=db_host)
-        cur = conn.cursor()
-        curr = """SELECT f.mjd
+        conn = sqlalchemy.create_engine("postgresql+psycopg2://{}:{}@{}:{}/{}".format(db_user,db_pwd,"decatdb.lbl.gov",5432,"desidb"))
+
+        curr = """SELECT f.mjd, f.night
             FROM iron.healpix_expfibermap f
             WHERE targetid={} AND fiberstatus=0""".format(t.targetid_01)
-        cur.execute(curr)
-        mjd_desi = cur.fetchall()
+        try:
+            mjd_desi = sqlio.read_sql_query(curr, conn)
+        except:
+            with open('error_db.txt','a') as f:
+                f.write(str(t.targetid_01))
+            continue
+        print(mjd_desi)
+        wef
+        if (len(mjd_desi)>1):
+            print(mjd_desi)
+            mjd_desi=numpy.array(mjd_desi)
+            print(mjd_desi)
+            uniq = numpy.unique(mjd_desi, return_index=True,axis=1)
+            print(uniq)
+            wfe
+        continue
+
         for mjd in mjd_desi:
 #            mjd_desi= hdul['QSO_CAT'].data['COADD_FIRSTMJD'][hdul['QSO_CAT'].data['TARGETID']== t.targetid_01][0]
             payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(mjd[0]-lc_window, mjd[0]+lc_window)}
             params = urllib.parse.urlencode(payload,quote_via=urllib.parse.quote)
             r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=params)
+            if cur.r.status_code != requests.codes.ok:
+                with open('error_query.txt',"a") as f:
+                    f.write(str(t.targetid_01))
+                continue
+
             ans = pandas.read_csv(io.StringIO(r.text))
             if (not ans.empty):
-                with open("{}/{}_{}.tbl".format(lcDir, t.targetid_01,mjd[0]), "w") as f:
+                with open("{}/{}_{:.1f}.tbl".format(lcDir, t.targetid_01,mjd[0]), "w") as f:
                     f.write(r.text)
         globalcounter=globalcounter+1
 
