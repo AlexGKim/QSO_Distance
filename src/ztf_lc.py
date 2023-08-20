@@ -29,6 +29,7 @@ uploadFile = "../upload.tbl"
 returnFile = "../data/output.tbl"
 lcDir = "../data/lc/"
 
+# Convert DESI fits file to IPAC Table
 # IRSA database query accepts IPAC Table
 # https://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html
 def qsoToTable():
@@ -48,16 +49,16 @@ def qsoToTable():
     # return hdul['QSO_CAT'].data
 
 
+# Query the ZTF database
 # Have to run the query through the web interface as the API does not accept huge numbers of rows
 # https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-dd
 def tableToObjects():
 
-    query = 'curl -o out.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec,ngoodobsrel -F outfmt=1 -Fconstraints=ngoodobsrel\>0 "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
+    query = 'curl -o output.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec,ngoodobsrel -F outfmt=1 -Fconstraints=ngoodobsrel\>0 "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
 
 
-
+# 
 def objectsToLCs():
-
 
     # DESI information
     fname = "/global/cfs/cdirs/desi/survey/catalogs/Y1/QSO/iron/QSO_cat_iron_main_dark_healpix_v0.fits"
@@ -75,7 +76,7 @@ def objectsToLCs():
     # query to IPAC Helpdesk says only one position per query available
     globalcounter=0
     for t in df.itertuples():
-        # if (globalcounter % 1000 == 0): print(globalcounter)
+        if (globalcounter % 1000 == 0): print(globalcounter)
         
         # get the dates this was observed by DESI
         conn = sqlalchemy.create_engine("postgresql+psycopg2://{}:{}@{}:{}/{}".format(db_user,db_pwd,"decatdb.lbl.gov",5432,"desidb"))
@@ -84,35 +85,28 @@ def objectsToLCs():
             FROM iron.healpix_expfibermap f
             WHERE targetid={} AND fiberstatus=0""".format(t.targetid_01)
         try:
-            mjd_desi = sqlio.read_sql_query(curr, conn)
+            desi_df = sqlio.read_sql_query(curr, conn)
         except:
             with open('error_db.txt','a') as f:
                 f.write(str(t.targetid_01))
+                wef
             continue
-        print(mjd_desi)
-        wef
-        if (len(mjd_desi)>1):
-            print(mjd_desi)
-            mjd_desi=numpy.array(mjd_desi)
-            print(mjd_desi)
-            uniq = numpy.unique(mjd_desi, return_index=True,axis=1)
-            print(uniq)
-            wfe
-        continue
+        desi_df = desi_df.groupby(['night']).mean().reset_index()
 
-        for mjd in mjd_desi:
-#            mjd_desi= hdul['QSO_CAT'].data['COADD_FIRSTMJD'][hdul['QSO_CAT'].data['TARGETID']== t.targetid_01][0]
-            payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(mjd[0]-lc_window, mjd[0]+lc_window)}
+        for index, row in desi_df.iterrows():
+           # hdul['QSO_CAT'].data['COADD_FIRSTMJD'][hdul['QSO_CAT'].data['TARGETID']== t.targetid_01][0]
+            payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(row['mjd']-lc_window, row['mjd']+lc_window)}
             params = urllib.parse.urlencode(payload,quote_via=urllib.parse.quote)
             r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=params)
-            if cur.r.status_code != requests.codes.ok:
+            if r.status_code != requests.codes.ok:
                 with open('error_query.txt',"a") as f:
-                    f.write(str(t.targetid_01))
+                    f.write(str(t.targetid_01)+" "+str(mjd['night']))
+                    wef
                 continue
 
             ans = pandas.read_csv(io.StringIO(r.text))
             if (not ans.empty):
-                with open("{}/{}_{:.1f}.tbl".format(lcDir, t.targetid_01,mjd[0]), "w") as f:
+                with open("{}/{}_{}.tbl".format(lcDir, t.targetid_01,row['night']), "w") as f:
                     f.write(r.text)
         globalcounter=globalcounter+1
 
