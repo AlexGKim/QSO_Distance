@@ -9,53 +9,6 @@ from astropy.io import ascii
 import matplotlib.pyplot as plt
 import sqlalchemy
 import pandas.io.sql as sqlio
-'''
-
-Steps
-
-1. Convert DESI QSO list to an IPAC Table:      qsoToTable()
-2. Get ZTF objects in IPAC Table into xxx asynchronously:  due to query limitations must be done on web interface.  tableToObjects()
-3. Get LCs of ZTF objects in matched Table
-
-'''
-
-radius_arcsec = 0.5
-radius_degree = radius_arcsec/3600
-desistart = 59197   # Dec 14 2020 first night of iron
-
-lc_window = 5.5 # +/- days
-
-uploadFile = "../upload.tbl"
-returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
-lcDir = "../data/lc/"
-
-# Convert DESI fits file to IPAC Table
-# IRSA database query accepts IPAC Table
-# https://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html
-def qsoToTable():
-    fname = "/global/cfs/cdirs/desi/survey/catalogs/Y1/QSO/iron/QSO_cat_iron_main_dark_healpix_v0.fits"
-    hdul = fits.open(fname,memmap=True)
-    head = """|    ra      |     dec     |     targetid      |
-|  double    |    double   |      long         |
-|   deg      |    deg      |                   |
-|   null     |    null     |      null         |
-"""
-    with open(uploadFile, 'w') as f:
-        f.write(head)
-        for d in hdul['QSO_CAT'].data:
-            f.write("{:12.7f} {:13.7f} {:19d}\n".format(d['TARGET_RA'],d['TARGET_DEC'], d['TARGETID']))
-    # # coords['Q1']=(298.0025, 29.87147)
-    # # coords['Q2']=(269.84158, 45.35492)
-    # return hdul['QSO_CAT'].data
-
-
-# Query the ZTF database
-# Have to run the query through the web interface as the API does not accept huge numbers of rows
-# https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-dd
-def tableToObjects():
-
-    query = 'curl -o output.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec,field,ccdid,qid,ngoodobsrel -F outfmt=1 -Fconstraints=ngoodobsrel\>0 "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
-
 
 # The database query is slow.  Downloaded the entire ZTF light curve data
 def objectsToLCs():
