@@ -14,7 +14,7 @@ import pyarrow.parquet as pq
 
 conn_global = None
 df_global = None
-lc_dir='/Users/akim/project/QSO_Distance/data/'
+lc_dir='/pscratch/sd/a/akim/ZTF/irsa.ipac.caltech.edu/data/ZTF/lc/lc_dr18/[01]/'
 
 
 # DESI database
@@ -37,14 +37,9 @@ def setup_df():
 # The database query is slow.  Downloaded the entire ZTF light curve data
 def targetidLC(targetid):
 
-    # df2 = df.query('targetid_01==targetid')
-    oid = 297103100005126
-    tile=297
-    ccd_id = 3
-    q_id = 1
-
-    files = glob.glob(lc_dir+'ztf_*{}_*_c*{}_q*{}_dr18.parquet'.format(tile,ccd_id,q_id))
-
+    if df_global is None: setup_df()
+    df2 = df_global[df_global['targetid_01']==targetid]
+    files = glob.glob(lc_dir+'field{0}/ztf_{0}_*_c{1}_q{2}_dr18.parquet'.format(df2.field.iloc[0].astype('str').zfill(6),df2.ccdid.iloc[0].astype('str').zfill(2),df2.qid.iloc[0]))
     ans=[]
     for f in files:
         df = pq.read_table(f).to_pandas()
@@ -90,4 +85,4 @@ def targetidLC(targetid):
 
 
 if __name__ == '__main__':
-    sys.exit(targetidLC(None))
+    sys.exit(targetidLC(39627322701128888))
