@@ -1,14 +1,11 @@
 import sys
 import io
-# import requests
 import pandas
 import numpy
-# import urllib
-# from astropy.io import fits
 from astropy.io import ascii
 import matplotlib.pyplot as plt
 import sqlalchemy
-# import pandas.io.sql as sqlio
+import pandas.io.sql as sqlio
 import glob
 import pyarrow.parquet as pq
 
@@ -47,25 +44,24 @@ def targetidLC(targetid):
 
     result = pandas.concat(ans, ignore_index=True, copy=False)
     return result
-        
+
+def targetidDESIMJDs(targetid):
+
+    # get the dates this was observed by DESI
+    if conn_global is None: setup_conn()
+    curr = """SELECT f.mjd, f.night
+             FROM iron.healpix_expfibermap f
+             WHERE targetid={} AND fiberstatus=0""".format(targetid)
+    desi_df = sqlio.read_sql_query(curr, conn_global)
+    desi_df = desi_df.groupby(['night']).mean().reset_index()
+    return desi_df
+
+
     # # query to IPAC Helpdesk says only one position per query available
     # globalcounter=0
     # for t in df.itertuples():
     #     if (globalcounter % 1000 == 0): print(globalcounter)
         
-    #     # get the dates this was observed by DESI
-
-    #     curr = """SELECT f.mjd, f.night
-    #         FROM iron.healpix_expfibermap f
-    #         WHERE targetid={} AND fiberstatus=0""".format(t.targetid_01)
-    #     try:
-    #         desi_df = sqlio.read_sql_query(curr, conn)
-    #     except:
-    #         with open('error_db.txt','a') as f:
-    #             f.write(str(t.targetid_01))
-    #             wef
-    #         continue
-    #     desi_df = desi_df.groupby(['night']).mean().reset_index()
 
     #     for row in desi_df.itertuples():
     #         payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(row.mjd-lc_window, row.mjd+lc_window)}
@@ -85,4 +81,5 @@ def targetidLC(targetid):
 
 
 if __name__ == '__main__':
-    sys.exit(targetidLC(39627322701128888))
+    sys.exit(targetidDESIMJDs(39627322701128888))
+    #sys.exit(targetidLC(39627322701128888))
