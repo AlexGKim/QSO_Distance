@@ -9,22 +9,24 @@ from astropy.io import ascii
 import matplotlib.pyplot as plt
 import sqlalchemy
 import pandas.io.sql as sqlio
+
 '''
 
 Steps
 
 1. Convert DESI QSO list to an IPAC Table:      qsoToTable()
 2. Get ZTF objects in IPAC Table into xxx asynchronously:  due to query limitations must be done on web interface.  tableToObjects()
-3. Get LCs of ZTF objects in matched Table
+3. Get MJD of nights of DESI-ZTF matchd objects 
+3. Get LCs of ZTF objects in matched Table: all_DESI_MJDs
 
 '''
 
 radius_arcsec = 0.5
 radius_degree = radius_arcsec/3600
-desistart = 59197   # Dec 14 2020 first night of iron
 
 lc_window = 5.5 # +/- days
 
+secretsFile = "/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt"
 uploadFile = "../upload.tbl"
 returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
 datesFile = "../data/dates.h5"
@@ -39,7 +41,7 @@ ztfdf_global = None
 def get_desi_conn():
     global conn_global
     if conn_global is None:
-        with open('/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt') as f:
+        with open(secretsFile) as f:
             file = f.read()
             db_name, db_user, db_pwd, db_host = file.split()
         conn_global = sqlalchemy.create_engine("postgresql+psycopg2://{}:{}@{}:{}/{}".format(db_user,db_pwd,"decatdb.lbl.gov",5432,"desidb"))
@@ -103,7 +105,34 @@ def all_DESI_MJDs():
     store = pandas.HDFStore(datesFile,mode='w')
     store['df']=ans
     store.close()
-   
+
+# select on dates
+# only good photometry kept based on 32768 bitmask
+def trimLC(lc, dates, window):
+    index = numpy.full(lc.nepochs, False)
+    hmjd = lc['hmjd'].values[0]
+    for date in dates.itertuples():
+        index = numpy.logical_or(index, numpy.logical_and(numpy.abs(hmjd-date.mjd) < window/2,(lc['catflags'].values[0] & 32768)==0))
+    return hmjd[index], lc['magerr'].values[0][index], lc['mag'].values[0][index]
+
+def main():
+     if df_global is None: setup_df()
+            print("number of targetids {}".format(df_global.shape[0]))
+                ans={1:0, 3:0, 5:0, 7:0, 9:0}
+                    count=0
+                        for row in df_global.itertuples():
+                                    if (count % 100000 ==0): print(count, ans)
+                                            # targetid = 39627322701128888
+                                                    lc = targetidLC(row.targetid_01)
+                                                            dates = targetidDESIMJDs(row.targetid_01)
+                                                                    for k in ans.keys():
+                                                                                    dum = trimLC(lc,dates,k)
+                                                                                                if (len(dum[0]) !=0):
+                                                                                                                    ans[k] +=1
+                                                                                                                            count += 1
+
+                                                                                                                                print(ans)
+
 # The database query is slow.  Downloaded the entire ZTF light curve data
 def objectsToLCs():
 
