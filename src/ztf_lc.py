@@ -27,7 +27,32 @@ lc_window = 5.5 # +/- days
 
 uploadFile = "../upload.tbl"
 returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
+datesFile = "../data/dates.h5"
+
 lcDir = "../data/lc/"
+
+# cached variables
+conn_global = None
+ztfdf_global = None
+
+# DESI database
+def get_desi_conn():
+    global conn_global
+    if conn_global is None:
+        with open('/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt') as f:
+            file = f.read()
+            db_name, db_user, db_pwd, db_host = file.split()
+        conn_global = sqlalchemy.create_engine("postgresql+psycopg2://{}:{}@{}:{}/{}".format(db_user,db_pwd,"decatdb.lbl.gov",5432,"desidb"))
+    return conn_global
+
+# ZTF information
+def get_ztf_df():
+    global ztfdf_global
+    if ztfdf_global is None:
+        data = ascii.read(returnFile)
+        ztfdf_global = data.to_pandas()
+        ztfdf_global = ztfdf_global[ztfdf_global['oid'].notna()]  # prune out DESI objects not returned by ZTF
+    return ztfdf_global
 
 # Convert DESI fits file to IPAC Table
 # IRSA database query accepts IPAC Table
@@ -53,10 +78,28 @@ def qsoToTable():
 # Have to run the query through the web interface as the API does not accept huge numbers of rows
 # https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-dd
 def tableToObjects():
-
     query = 'curl -o output.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec,field,ccdid,qid,ngoodobsrel -F outfmt=1 -Fconstraints=ngoodobsrel\>0 "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
+    return query
 
+# get the dates this was observed by DESI
+def targetid_DESI_MJDs(targetid):
+    conn = get_desi_conn()
+    lt = ["targetid={} ".format(t) for t in targetid]
+    lt = " or ".join(lt)
+    curr = """SELECT f.targetid, f.mjd, f.night
+             FROM iron.healpix_expfibermap f
+             WHERE {}""".format(lt)
+    desi_df = sqlio.read_sql_query(curr, conn)
+    desi_df = desi_df.groupby(['targetid', 'night']).mean().reset_index()
+    return desi_df
 
+def all_DESI_MJDs():
+    df = get_ztf_df()
+    ans = targetid_DESI_MJDs(df['targetid_01'].values)
+    store = pandas.HDFStore(datesFile)
+    store['df']=ans
+    store.close()
+   
 # The database query is slow.  Downloaded the entire ZTF light curve data
 def objectsToLCs():
 
@@ -112,4 +155,4 @@ def objectsToLCs():
 
 
 if __name__ == '__main__':
-    sys.exit(objectsToLCs())
+    sys.exit(all_DESI_MJDs())
