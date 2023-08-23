@@ -106,6 +106,20 @@ def all_DESI_MJDs():
     store['df']=ans
     store.close()
 
+
+# The database query is slow.  Downloaded the entire ZTF light curve data
+def targetidLC(targetid):
+    df = get_ztf_df()
+    df2 = df[df['targetid_01']==targetid]
+    files = glob.glob(lc_dir+'field{0}/ztf_{0}_*_c{1}_q{2}_dr18.parquet'.format(df2.field.iloc[0].astype('str').zfill(6),df2.ccdid.iloc[0].astype('str').zfill(2),df2.qid.iloc[0]))
+    ans=[]
+    for f in files:
+        df = pq.read_table(f).to_pandas()
+        ans.append(df.loc[df['objectid']==df2.oid.iloc[0]])
+
+    result = pandas.concat(ans, ignore_index=True, copy=False)
+    return result
+
 # select on dates
 # only good photometry kept based on 32768 bitmask
 def trimLC(lc, dates, window):
@@ -116,22 +130,25 @@ def trimLC(lc, dates, window):
     return hmjd[index], lc['magerr'].values[0][index], lc['mag'].values[0][index]
 
 def main():
-     if df_global is None: setup_df()
-            print("number of targetids {}".format(df_global.shape[0]))
-                ans={1:0, 3:0, 5:0, 7:0, 9:0}
-                    count=0
-                        for row in df_global.itertuples():
-                                    if (count % 100000 ==0): print(count, ans)
-                                            # targetid = 39627322701128888
-                                                    lc = targetidLC(row.targetid_01)
-                                                            dates = targetidDESIMJDs(row.targetid_01)
-                                                                    for k in ans.keys():
-                                                                                    dum = trimLC(lc,dates,k)
-                                                                                                if (len(dum[0]) !=0):
-                                                                                                                    ans[k] +=1
-                                                                                                                            count += 1
+    df = get_ztf_df()
+    store = pandas.HDFStore(datesFile,mode='r')
+    dates_df = store['df']
+    print("number of targetids {}".format(df.shape[0]))
+    ans={1:0, 3:0, 5:0, 7:0, 9:0}
+    count=0
+    for row in df.itertuples():
+        if (count % 100000 ==0): print(count, ans)
+        # targetid = 39627322701128888
+        lc = targetidLC(row.targetid_01)
+        dates = dates_df[dates_df['targetid'] == row.targetid_01]
+        for k in ans.keys():
+            dum = trimLC(lc,dates,k)
+            if (len(dum[0]) !=0):
+                ans[k] +=1
+        count += 1
 
-                                                                                                                                print(ans)
+    print(ans)
+                                                                                                                      print(ans)
 
 # The database query is slow.  Downloaded the entire ZTF light curve data
 def objectsToLCs():
@@ -188,4 +205,4 @@ def objectsToLCs():
 
 
 if __name__ == '__main__':
-    sys.exit(all_DESI_MJDs())
+    sys.exit(main())
