@@ -84,11 +84,15 @@ def tableToObjects():
 # get the dates this was observed by DESI
 def targetid_DESI_MJDs(targetid):
     conn = get_desi_conn()
-    lt = ["targetid={} ".format(t) for t in targetid]
-    lt = " or ".join(lt)
+    lt = ", ".join(targetid.astype('str'))
+    # curr = """SELECT f.targetid, f.mjd, f.night
+    #          FROM iron.healpix_expfibermap f
+    #          WHERE {}""".format(lt)
     curr = """SELECT f.targetid, f.mjd, f.night
              FROM iron.healpix_expfibermap f
-             WHERE {}""".format(lt)
+             INNER JOIN
+             unnest(ARRAY[{}]) as tid
+             ON tid=f.targetid""".format(lt)
     desi_df = sqlio.read_sql_query(curr, conn)
     desi_df = desi_df.groupby(['targetid', 'night']).mean().reset_index()
     return desi_df
@@ -96,7 +100,7 @@ def targetid_DESI_MJDs(targetid):
 def all_DESI_MJDs():
     df = get_ztf_df()
     ans = targetid_DESI_MJDs(df['targetid_01'].values)
-    store = pandas.HDFStore(datesFile)
+    store = pandas.HDFStore(datesFile,mode='w')
     store['df']=ans
     store.close()
    
