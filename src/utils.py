@@ -64,11 +64,13 @@ def targetidDESIMJDs(targetid):
 
     return desi_df
 
+# select on dates
+# only good photometry kept based on 32768 bitmask
 def trimLC(lc, dates, window):
     index = numpy.full(lc.nepochs, False)
     hmjd = lc['hmjd'].values[0]
     for date in dates.itertuples():
-        index = numpy.logical_or(index, numpy.abs(hmjd-date.mjd) < window/2)
+        index = numpy.logical_or(index, numpy.logical_and(numpy.abs(hmjd-date.mjd) < window/2,(lc['catflags'].values[0] & 32768)==0))
     return hmjd[index], lc['magerr'].values[0][index], lc['mag'].values[0][index]
  
     # # query to IPAC Helpdesk says only one position per query available
@@ -99,13 +101,14 @@ def main():
     ans={1:0, 3:0, 5:0, 7:0, 9:0}
     count=0
     for row in df_global.itertuples():
-        if (count % 10000 ==0): print(count)
+        if (count % 1000 ==0): print(count, ans)
         # targetid = 39627322701128888
         lc = targetidLC(row.targetid_01)
         dates = targetidDESIMJDs(row.targetid_01)
         for k in ans.keys():
             dum = trimLC(lc,dates,k)
-            ans[k] = ans[k]+len(dum[0])
+            if (len(dum[0]) !=0):
+                ans[k] +=1
         count += 1
 
     print(ans)
