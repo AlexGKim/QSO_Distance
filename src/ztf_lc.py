@@ -9,6 +9,8 @@ from astropy.io import ascii
 import matplotlib.pyplot as plt
 import sqlalchemy
 import pandas.io.sql as sqlio
+import glob
+import pyarrow.parquet as pq
 
 '''
 
@@ -30,8 +32,9 @@ secretsFile = "/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt"
 uploadFile = "../upload.tbl"
 returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
 datesFile = "../data/dates.h5"
+ztflc_dir='/pscratch/sd/a/akim/ZTF/irsa.ipac.caltech.edu/data/ZTF/lc/lc_dr18/[01]/'
 
-lcDir = "../data/lc/"
+lcDir = "../data/lc/" # depracated
 
 # cached variables
 conn_global = None
@@ -111,7 +114,7 @@ def all_DESI_MJDs():
 def targetidLC(targetid):
     df = get_ztf_df()
     df2 = df[df['targetid_01']==targetid]
-    files = glob.glob(lc_dir+'field{0}/ztf_{0}_*_c{1}_q{2}_dr18.parquet'.format(df2.field.iloc[0].astype('str').zfill(6),df2.ccdid.iloc[0].astype('str').zfill(2),df2.qid.iloc[0]))
+    files = glob.glob(ztflc_dir+'field{0}/ztf_{0}_*_c{1}_q{2}_dr18.parquet'.format(df2.field.iloc[0].astype('str').zfill(6),df2.ccdid.iloc[0].astype('str').zfill(2),df2.qid.iloc[0]))
     ans=[]
     for f in files:
         df = pq.read_table(f).to_pandas()
@@ -129,80 +132,45 @@ def trimLC(lc, dates, window):
         index = numpy.logical_or(index, numpy.logical_and(numpy.abs(hmjd-date.mjd) < window/2,(lc['catflags'].values[0] & 32768)==0))
     return hmjd[index], lc['magerr'].values[0][index], lc['mag'].values[0][index]
 
-def main():
+def countQSOwithData():
     df = get_ztf_df()
     store = pandas.HDFStore(datesFile,mode='r')
     dates_df = store['df']
+
     print("number of targetids {}".format(df.shape[0]))
     ans={1:0, 3:0, 5:0, 7:0, 9:0}
     count=0
-    for row in df.itertuples():
-        if (count % 100000 ==0): print(count, ans)
-        # targetid = 39627322701128888
-        lc = targetidLC(row.targetid_01)
-        dates = dates_df[dates_df['targetid'] == row.targetid_01]
-        for k in ans.keys():
-            dum = trimLC(lc,dates,k)
-            if (len(dum[0]) !=0):
-                ans[k] +=1
-        count += 1
 
-    print(ans)
-                                                                                                                      print(ans)
+    ccds = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
+    qs=[1,2,3,4]
+    dirs = glob.glob(ztflc_dir+'field*')
+    for di in dirs:
+        for ccd in ccds:
+            for q in qs:
+                files = glob.glob(di+'/ztf_*_*_c{}_q{}_dr18.parquet'.format(str(ccd).zfill(2), q))
+                if len(files) ==0: continue
+                
+                dum_=[]
+                for file in files:
+                    df_ = pq.read_table(file).to_pandas()
+                    dum_.append(df_)
+                
+                lcdf = pandas.concat(dum_, ignore_index=True, copy=False)
 
-# The database query is slow.  Downloaded the entire ZTF light curve data
-def objectsToLCs():
+                for i in lcdf['objectid'].unique():
+                    if df['oid'].isin(i):
+                        lcdf_i = lcdf[lcdf['objectid']==i]
+                        print(lcdf_i)
+                        dates = dates_df[dates_df['targetid'] == df['targetid_01'][df['oid'==i]]]
+                        print(dates)
+                        dum = trimLC(lcdf_i, dates,5)
+                        print(dum)
+                        if (len(dum[0]) !=0):
+                            ans[k] +=1
 
-    # DESI information
-    fname = "/global/cfs/cdirs/desi/survey/catalogs/Y1/QSO/iron/QSO_cat_iron_main_dark_healpix_v0.fits"
-    hdul = fits.open(fname,memmap=True)
-
-    with open('/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt') as f:
-        file = f.read()
-        db_name, db_user, db_pwd, db_host = file.split()
-
-    # ZTF information
-    data = ascii.read(returnFile)
-    df = data.to_pandas()
-    df = df[df['oid'].notna()]  # prune out DESI objects not returned by ZTF
-
-    # query to IPAC Helpdesk says only one position per query available
-    globalcounter=0
-    for t in df.itertuples():
-        if (globalcounter % 1000 == 0): print(globalcounter)
-        
-        # get the dates this was observed by DESI
-        conn = sqlalchemy.create_engine("postgresql+psycopg2://{}:{}@{}:{}/{}".format(db_user,db_pwd,"decatdb.lbl.gov",5432,"desidb"))
-
-        curr = """SELECT f.mjd, f.night
-            FROM iron.healpix_expfibermap f
-            WHERE targetid={} AND fiberstatus=0""".format(t.targetid_01)
-        try:
-            desi_df = sqlio.read_sql_query(curr, conn)
-        except:
-            with open('error_db.txt','a') as f:
-                f.write(str(t.targetid_01))
-                wef
-            continue
-        desi_df = desi_df.groupby(['night']).mean().reset_index()
-
-        for row in desi_df.itertuples():
-           # hdul['QSO_CAT'].data['COADD_FIRSTMJD'][hdul['QSO_CAT'].data['TARGETID']== t.targetid_01][0]
-            payload = {"ID": t.oid, "FORMAT": "CSV", "BAD_CATFLAGS_MASK": 32768,"TIME":"{} {}".format(row.mjd-lc_window, row.mjd+lc_window)}
-            params = urllib.parse.urlencode(payload,quote_via=urllib.parse.quote)
-            r = requests.get('https://irsa.ipac.caltech.edu/cgi-bin/ZTF/nph_light_curves', params=params)
-            if r.status_code != requests.codes.ok:
-                with open('error_query.txt',"a") as f:
-                    f.write(str(t.targetid_01)+" "+str(mjd['night']))
                     wef
-                continue
+        print(ans)
 
-            ans = pandas.read_csv(io.StringIO(r.text))
-            if (not ans.empty):
-                with open("{}/{}_{}.tbl".format(lcDir, t.targetid_01,row.night), "w") as f:
-                    f.write(r.text)
-        globalcounter=globalcounter+1
-
-
+                              
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(countQSOwithData())
