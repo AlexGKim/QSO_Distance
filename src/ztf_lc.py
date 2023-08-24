@@ -150,6 +150,7 @@ def countQSOwithData():
     ccds = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
     qs=[1,2,3,4]
     dirs = glob.glob(ztflc_dir+'field*')
+    print("number of directories {}".format(len(dirs)))
     for di in dirs:
         for ccd in ccds:
             for q in qs:
@@ -172,9 +173,8 @@ def countQSOwithData():
                         dum = trimLC(r, dates ,k)
                         if (len(dum[0]) !=0):
                             ans[k] +=1
-        print(ans)
-    awef
+        print(count, ans)
+        count += 1
 
-                              
 if __name__ == '__main__':
     sys.exit(countQSOwithData())
