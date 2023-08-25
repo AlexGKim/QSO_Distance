@@ -11,6 +11,7 @@ import sqlalchemy
 import pandas.io.sql as sqlio
 import glob
 import pyarrow.parquet as pq
+import h5py
 
 '''
 
@@ -120,9 +121,8 @@ def targetidLC():
     qs=[1,2,3,4]
     dirs = glob.glob(ztflc_dir+'field*')
     print("number of directories {}".format(len(dirs)))
-    store = pandas.HDFStore(targetidLCFile,mode='w')
+    f = h5py.File(targetidLCFile, 'w')
     counter = 0
-    dfarr=[]
     for di in dirs:
         print(counter)
         for ccd in ccds:
@@ -137,11 +137,14 @@ def targetidLC():
                 
                 lcdf = pandas.concat(dum_, ignore_index=True, copy=False)
                 jdf = pandas.merge(lcdf , df, left_on='objectid', right_on='oid', how='inner')
-                dfarr.append(jdf)
+                for r in jdf.itertuples():
+                    grp = f.create_group(str(r.targetid_01))
+                    grp.create_dataset('hmjd',data=r.hmjd)
+                    grp.create_dataset('mag',data=r.mag)
+                    grp.create_dataset('magerr',data=r.magerr)
+                    grp.create_dataset('catflags',data=r.catflags)
         counter +=1
-    jdf = pandas.concat(dfarr, ignore_index=True, copy=False)
-    store['df']=jdf
-    store.close()
+    f.close()
 
 
 # The database query is slow.  Downloaded the entire ZTF light curve data
