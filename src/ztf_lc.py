@@ -113,17 +113,18 @@ def all_DESI_MJDs():
     store.close()
 
 
-def targetIDLC():
-
-
+def targetidLC():
     df = get_ztf_df()
 
     ccds = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
     qs=[1,2,3,4]
     dirs = glob.glob(ztflc_dir+'field*')
     print("number of directories {}".format(len(dirs)))
-    biglist=[]
+    store = pandas.HDFStore(targetidLCFile,mode='w')
+    counter = 0
+    dfarr=[]
     for di in dirs:
+        print(counter)
         for ccd in ccds:
             for q in qs:
                 files = glob.glob(di+'/ztf_*_*_c{}_q{}_dr18.parquet'.format(str(ccd).zfill(2), q))
@@ -136,17 +137,15 @@ def targetIDLC():
                 
                 lcdf = pandas.concat(dum_, ignore_index=True, copy=False)
                 jdf = pandas.merge(lcdf , df, left_on='objectid', right_on='oid', how='inner')
-
-                biglist.append(jdf)
-
-    jdf = pandas.concat(biglist, ignore_index=True, copy=False)
-    store = pandas.HDFStore(targetidLCFile,mode='w')
+                dfarr.append(jdf)
+        counter +=1
+    jdf = pandas.concat(dfarr, ignore_index=True, copy=False)
     store['df']=jdf
     store.close()
 
 
 # The database query is slow.  Downloaded the entire ZTF light curve data
-def targetidLC(targetid):
+def targetidLC_(targetid):
     df = get_ztf_df()
     df2 = df[df['targetid_01']==targetid]
     files = glob.glob(ztflc_dir+'field{0}/ztf_{0}_*_c{1}_q{2}_dr18.parquet'.format(df2.field.iloc[0].astype('str').zfill(6),df2.ccdid.iloc[0].astype('str').zfill(2),df2.qid.iloc[0]))
@@ -212,4 +211,4 @@ def countQSOwithData():
         count += 1
 
 if __name__ == '__main__':
-    sys.exit(countQSOwithData())
+    sys.exit(targetidLC())
