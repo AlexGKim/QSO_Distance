@@ -14,11 +14,13 @@ import pyarrow.parquet as pq
 
 '''
 
-Steps
+Products
 
-1. Convert DESI QSO list to an IPAC Table:      qsoToTable()
-2. Get ZTF objects in IPAC Table into xxx asynchronously:  due to query limitations must be done on web interface.  tableToObjects()
-3. Get MJD of nights of DESI-ZTF matchd objects 
+1. DESI QSO list (fits)
+2. DESI QSO list (IPAC Table) : qsoToTable()
+3. QSO-matched ZTF object list (IPAC Table) : ZTF query through web interface tableToObjects()
+4. DESI QSO MJD of observation (h5) : all_DESI_MJDs()
+5. ZTF light curves (parquet) : Though overkill fastest to download all light curves rather than database query
 3. Get LCs of ZTF objects in matched Table: all_DESI_MJDs
 
 '''
@@ -32,6 +34,7 @@ secretsFile = "/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt"
 uploadFile = "../upload.tbl"
 returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
 datesFile = "../data/dates.h5"
+targetidLCFile = "../data/targetidLC.h5"
 ztflc_dir='/pscratch/sd/a/akim/ZTF/irsa.ipac.caltech.edu/data/ZTF/lc/lc_dr18/[01]/'
 
 lcDir = "../data/lc/" # depracated
@@ -107,6 +110,38 @@ def all_DESI_MJDs():
     ans = targetid_DESI_MJDs(df['targetid_01'].values)
     store = pandas.HDFStore(datesFile,mode='w')
     store['df']=ans
+    store.close()
+
+
+def targetIDLC():
+
+
+    df = get_ztf_df()
+
+    ccds = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
+    qs=[1,2,3,4]
+    dirs = glob.glob(ztflc_dir+'field*')
+    print("number of directories {}".format(len(dirs)))
+    biglist=[]
+    for di in dirs:
+        for ccd in ccds:
+            for q in qs:
+                files = glob.glob(di+'/ztf_*_*_c{}_q{}_dr18.parquet'.format(str(ccd).zfill(2), q))
+                if len(files) ==0: continue
+                
+                dum_=[]
+                for file in files:
+                    df_ = pq.read_table(file).to_pandas()
+                    dum_.append(df_)
+                
+                lcdf = pandas.concat(dum_, ignore_index=True, copy=False)
+                jdf = pandas.merge(lcdf , df, left_on='objectid', right_on='oid', how='inner')
+
+                biglist.append(jdf)
+
+    jdf = pandas.concat(biglist, ignore_index=True, copy=False)
+    store = pandas.HDFStore(targetidLCFile,mode='w')
+    store['df']=jdf
     store.close()
 
 
