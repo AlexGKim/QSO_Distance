@@ -185,56 +185,39 @@ def linktargetidLCFile():
 
 # select on dates
 # only good photometry kept based on 32768 bitmask
-def trimLC(lc, dates, window):
-    index = numpy.full(lc.nepochs, False)
-    hmjd = lc.hmjd
+def trimLC(hmjd, mag, magerr, catflags, dates, window):
+    index = numpy.full(len(hmjd), False)
     for date in dates.itertuples():
-        index = numpy.logical_or(index, numpy.logical_and(numpy.abs(hmjd-date.mjd) < window/2,(lc.catflags & 32768)==0))
-    return hmjd[index], lc.magerr[index], lc.mag[index]
+        index = numpy.logical_or(index, numpy.logical_and(numpy.abs(hmjd-date.mjd) < window/2,(catflags & 32768)==0))
+    return hmjd[index], magerr[index], mag[index]
 
 def countQSOwithData():
-    # object table from ZTF
-    df = get_ztf_df()
+    # lcs 
+    lcstore = h5py.File(targetidLCFile,'r')
+    fields = lcstore['fields']
 
     # dates table from DESI
     store = pandas.HDFStore(datesFile,mode='r')
     dates_df = store['df']
 
-    # merge the ztf and desi dates
-    # mdf = pandas.merge(df, dates_df, left_on='targetid_01', right_on='targetid', how='inner')
+    # number of target ids
+    ntid=0
+    for k in fields.keys():
+        ntid += len(fields[k].keys())
+    print("number of targetids {}".format(ntid)
 
-    print("number of targetids {}".format(df.shape[0]))
     ans={1:0, 3:0, 5:0, 7:0, 9:0}
     count=0
+    for k in fields.keys():
+          for t in fields[k].keys():
+                dates = dates_df[dates_df['targetid']==int(t)]
+                for anskey in ans.keys():
+                    dum = trimLC(numpy.array(fields[k][t]['hmjd']), numpy.array(fields[k][t]['mag']), numpy.array(fields[k][t]['magerr']),numpy.array(fields[k][t]['catflags']), dates ,anskey)
+                    if (len(dum[0]) !=0):
+                        ans[anskey] +=1
+          print(count, ans)
+          count += 1
 
-    ccds = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
-    qs=[1,2,3,4]
-    dirs = glob.glob(ztflc_dir+'field*')
-    print("number of directories {}".format(len(dirs)))
-    for di in dirs:
-        for ccd in ccds:
-            for q in qs:
-                files = glob.glob(di+'/ztf_*_*_c{}_q{}_dr18.parquet'.format(str(ccd).zfill(2), q))
-                if len(files) ==0: continue
-                
-                dum_=[]
-                for file in files:
-                    df_ = pq.read_table(file).to_pandas()
-                    dum_.append(df_)
-                
-                lcdf = pandas.concat(dum_, ignore_index=True, copy=False)
-                jdf = pandas.merge(lcdf , df, left_on='objectid', right_on='oid', how='inner')
-
-                # to do merge jdf with dates_df based on targetid
-
-                for r in jdf.itertuples():
-                    dates = dates_df[dates_df['targetid'] == r.targetid_01]
-                    for k in ans.keys():
-                        dum = trimLC(r, dates ,k)
-                        if (len(dum[0]) !=0):
-                            ans[k] +=1
-        print(count, ans)
-        count += 1
 
 
 def main():
