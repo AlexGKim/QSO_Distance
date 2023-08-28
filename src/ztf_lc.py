@@ -1,3 +1,4 @@
+import os
 import sys
 import io
 import requests
@@ -20,9 +21,10 @@ Products
 1. DESI QSO list (fits)
 2. DESI QSO list (IPAC Table) : qsoToTable()
 3. QSO-matched ZTF object list (IPAC Table) : ZTF query through web interface tableToObjects()
-4. DESI QSO MJD of observation (h5) : all_DESI_MJDs()
+4. DESI QSO MJD of observation (hdf5) : all_DESI_MJDs()
 5. ZTF light curves (parquet) : Though overkill fastest to download all light curves rather than database query
-3. Get LCs of ZTF objects in matched Table: all_DESI_MJDs
+6. DESI QSO light curves ([field].hdf5) : Save subset of the light curves to separate file targetidLC()
+7. DESI QSO light crves (targetidLCFile.hdf5) : One master hdf5 file with links to other files and a phone book
 
 '''
 
@@ -34,8 +36,10 @@ lc_window = 5.5 # +/- days
 secretsFile = "/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt"
 uploadFile = "../upload.tbl"
 returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
-datesFile = "../data/dates.h5"
-targetidLCFile = "../data/targetidLC.h5"
+datesFile = "../data/dates.hdf5"
+lcdir = "../data/lc/"
+targetidLCFile = lcdir+ "targetidLC.hdf5"
+# targetidLCFile = "../data/temp.h5"
 ztflc_dir='/pscratch/sd/a/akim/ZTF/irsa.ipac.caltech.edu/data/ZTF/lc/lc_dr18/[01]/'
 
 lcDir = "../data/lc/" # depracated
@@ -115,15 +119,20 @@ def all_DESI_MJDs():
 
 
 def targetidLC():
+    wefew # make this not work for now so not to overwrite good stuff
     df = get_ztf_df()
 
     ccds = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
     qs=[1,2,3,4]
     dirs = glob.glob(ztflc_dir+'field*')
     print("number of directories {}".format(len(dirs)))
-    f = h5py.File(targetidLCFile, 'w')
+   # f = h5py.File(targetidLCFile, 'w')
     counter = 0
     for di in dirs:
+        dibase  = os.path.basename(di)
+        dibase=dibase[5:]
+        f_sub = h5py.File(lcdir+"{}.hdf5".format(dibase), 'w')
+        print(dibase)
         print(counter)
         for ccd in ccds:
             for q in qs:
@@ -138,27 +147,41 @@ def targetidLC():
                 lcdf = pandas.concat(dum_, ignore_index=True, copy=False)
                 jdf = pandas.merge(lcdf , df, left_on='objectid', right_on='oid', how='inner')
                 for r in jdf.itertuples():
-                    grp = f.create_group(str(r.targetid_01))
-                    grp.create_dataset('hmjd',data=r.hmjd)
+                    grp = f_sub.create_group(str(r.targetid_01))
+                    ds = grp.create_dataset('hmjd',data=r.hmjd)
                     grp.create_dataset('mag',data=r.mag)
                     grp.create_dataset('magerr',data=r.magerr)
                     grp.create_dataset('catflags',data=r.catflags)
+        
+        f_sub.close()
+   #     f[dibase] = h5py.ExternalLink(lcdir+"{}.hdf5".format(dibase), "/")
+                    
         counter +=1
+   # f.close()
+
+def linktargetidLCFile():
+    f = h5py.File(targetidLCFile, 'w')
+    grp=f.create_group('fields')
+    dirs = glob.glob(ztflc_dir+'field*')
+    tid=[]
+    fid=[]
+    for di in dirs:
+        dibase  = os.path.basename(di)
+        dibase=dibase[5:]
+        grp[dibase] = h5py.ExternalLink(lcdir+"{}.hdf5".format(dibase), "/")
+        for t in grp[dibase].keys():
+            tid.append(t)
+            fid.append(dibase)
+
+    tid = numpy.array(tid,dtype='uint')
+    fid = numpy.array(fid,dtype='uint')
+    asort = numpy.argsort(tid)
+    tid=tid[asort]
+    fid=tid[asort]
+    pgrp=f.create_group('pbook')
+    pgrp.create_dataset('targetids', data= tid)
+    pgrp.create_dataset('fieldids',data = fid)
     f.close()
-
-
-# The database query is slow.  Downloaded the entire ZTF light curve data
-def targetidLC_(targetid):
-    df = get_ztf_df()
-    df2 = df[df['targetid_01']==targetid]
-    files = glob.glob(ztflc_dir+'field{0}/ztf_{0}_*_c{1}_q{2}_dr18.parquet'.format(df2.field.iloc[0].astype('str').zfill(6),df2.ccdid.iloc[0].astype('str').zfill(2),df2.qid.iloc[0]))
-    ans=[]
-    for f in files:
-        df = pq.read_table(f).to_pandas()
-        ans.append(df.loc[df['objectid']==df2.oid.iloc[0]])
-
-    result = pandas.concat(ans, ignore_index=True, copy=False)
-    return result
 
 # select on dates
 # only good photometry kept based on 32768 bitmask
@@ -213,5 +236,17 @@ def countQSOwithData():
         print(count, ans)
         count += 1
 
+
+def main():
+    f = h5py.File(targetidLCFile, 'r')
+    print(len(f.keys()))
+    tidwithlc=0
+    for k in f['/targetids'].keys():
+        tidwithlc += len(f[k].keys())
+    print(tidwithlc)
+
 if __name__ == '__main__':
-    sys.exit(targetidLC())
+    #targetidLC()
+    linktargetidLCFile()
+    #sys.exit(targetidLC())
+    # sys.exit(main())
