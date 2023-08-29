@@ -117,48 +117,74 @@ def all_DESI_MJDs():
     store['df']=ans
     store.close()
 
+# make per-field lc files
+def targetidLC(overwrite=False):
+    if not overwrite:
+        print("Doing nothing")
+        sys.exit(-1)
 
-def targetidLC():
-    wefew # make this not work for now so not to overwrite good stuff
     df = get_ztf_df()
 
     ccds = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
     qs=[1,2,3,4]
+
+    filteridtostr = {1:'g', 2:'r', 3:'i'}
+
+    # get all of the available fields
     dirs = glob.glob(ztflc_dir+'field*')
-    print("number of directories {}".format(len(dirs)))
-   # f = h5py.File(targetidLCFile, 'w')
+    print("number of directories/fields {}".format(len(dirs)))
+
     counter = 0
+    # loop for each field
+    # for completeness make an hdf5 file for every field even if it is empty
+
     for di in dirs:
         dibase  = os.path.basename(di)
         dibase=dibase[5:]
         f_sub = h5py.File(lcdir+"{}.hdf5".format(dibase), 'w')
-        print(dibase)
-        print(counter)
+        print(counter, dibase)
+
+        # try every possible patch of sky
         for ccd in ccds:
             for q in qs:
+
                 files = glob.glob(di+'/ztf_*_*_c{}_q{}_dr18.parquet'.format(str(ccd).zfill(2), q))
-                if len(files) ==0: continue
-                
+                if len(files) ==0: continue # if this patch has no lightcurves skip
+               
+                # merge all the objects in the different bands into one table
                 dum_=[]
                 for file in files:
                     df_ = pq.read_table(file).to_pandas()
                     dum_.append(df_)
-                
+
                 lcdf = pandas.concat(dum_, ignore_index=True, copy=False)
+
+                # connect light curves with DESI targetid through an inner join for efficiency
                 jdf = pandas.merge(lcdf , df, left_on='objectid', right_on='oid', how='inner')
-                for r in jdf.itertuples():
-                    grp = f_sub.create_group(str(r.targetid_01))
-                    ds = grp.create_dataset('hmjd',data=r.hmjd)
-                    grp.create_dataset('mag',data=r.mag)
-                    grp.create_dataset('magerr',data=r.magerr)
-                    grp.create_dataset('catflags',data=r.catflags)
+
+                # gather LC information on each DESI targetid
+                for utid in jdf['targetid_01'].unique():
+                    subjdf_ = jdf[jdf['targetid_01']==utid]
+                    grp = f_sub.create_group(str(utid))
+                    
+                    # collect for each filter
+                    for fid_ in range(1,4):
+                        grp2 = grp.create_group(filteridtostr[fid_])
+                        subsubjdf_ = subjdf_[subjdf_['filterid']==fid_]
+                        if subsubjdf_.shape[0] ==0:
+                            grp2.attrs.create('nepochs',0)
+                        else:
+                            for r in subsubjdf_.itertuples():
+                                grp2.attrs.create('nepochs',r.nepochs)
+                                grp2.create_dataset('hmjd',data=r.hmjd)
+                                grp2.create_dataset('mag',data=r.mag)
+                                grp2.create_dataset('magerr',data=r.magerr)
+                                grp2.create_dataset('catflags',data=r.catflags)
         
         f_sub.close()
-   #     f[dibase] = h5py.ExternalLink(lcdir+"{}.hdf5".format(dibase), "/")
-                    
         counter +=1
-   # f.close()
 
+# make uber list file that links to everything else
 def linktargetidLCFile():
     f = h5py.File(targetidLCFile, 'w')
     grp=f.create_group('fields')
@@ -204,7 +230,7 @@ def countQSOwithData():
     ntid=0
     for k in fields.keys():
         ntid += len(fields[k].keys())
-    print("number of targetids {}".format(ntid)
+    print("number of targetids {}".format(ntid))
 
     ans={1:0, 3:0, 5:0, 7:0, 9:0}
     count=0
@@ -229,7 +255,7 @@ def main():
     print(tidwithlc)
 
 if __name__ == '__main__':
-    #targetidLC()
-    linktargetidLCFile()
+    targetidLC(overwrite=True)
+    #linktargetidLCFile()
     #sys.exit(targetidLC())
     # sys.exit(main())
