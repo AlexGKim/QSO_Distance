@@ -232,15 +232,20 @@ def countQSOwithData():
         ntid += len(fields[k].keys())
     print("number of targetids {}".format(ntid))
 
-    ans={1:0, 3:0, 5:0, 7:0, 9:0}
+    perfilt = {'g': 0, 'r': 0, 'i': 0}
+    ans={1:perfilt, 3:dict(perfilt), 5:dict(perfilt), 7:dict(perfilt), 9:dict(perfilt)}
+
     count=0
-    for k in fields.keys():
-          for t in fields[k].keys():
+    for k in fields.keys():  # loop over fields
+          for t in fields[k].keys():  # loop over target ids
                 dates = dates_df[dates_df['targetid']==int(t)]
-                for anskey in ans.keys():
-                    dum = trimLC(numpy.array(fields[k][t]['hmjd']), numpy.array(fields[k][t]['mag']), numpy.array(fields[k][t]['magerr']),numpy.array(fields[k][t]['catflags']), dates ,anskey)
-                    if (len(dum[0]) !=0):
-                        ans[anskey] +=1
+                for b in perfilt.keys():  # loop over filters
+                    for window in ans.keys():  # loop over time windows
+                         if fields[k][t][b].attrs.get('nepochs') ==0: continue
+                         # print(fields[k][t][b].attrs.get('nepochs'))
+                         dum = trimLC(numpy.array(fields[k][t][b]['hmjd']), numpy.array(fields[k][t][b]['mag']), numpy.array(fields[k][t][b]['magerr']),numpy.array(fields[k][t][b]['catflags']), dates , window)
+                         if (len(dum[0]) !=0):
+                             ans[window][b] +=1
           print(count, ans)
           count += 1
 
@@ -255,7 +260,7 @@ def main():
     print(tidwithlc)
 
 if __name__ == '__main__':
-    targetidLC(overwrite=True)
-    #linktargetidLCFile()
-    #sys.exit(targetidLC())
+    #targetidLC(overwrite=True)
+    # linktargetidLCFile()
+    sys.exit(countQSOwithData())
     # sys.exit(main())
