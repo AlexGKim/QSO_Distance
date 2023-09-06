@@ -264,6 +264,6 @@ def main():
 
 if __name__ == '__main__':
     #targetidLC(overwrite=True)
-    linktargetidLCFile()
+    # linktargetidLCFile()
     sys.exit(countQSOwithData())
     # sys.exit(main())
