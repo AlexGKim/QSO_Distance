@@ -38,7 +38,7 @@ uploadFile = "../upload.tbl"
 returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
 datesFile = "../data/dates.hdf5"
 lcdir = "../data/lc/"
-targetidLCFile = lcdir+ "targetidLC.hdf5"
+targetidLCFile = "../data/targetidLC.hdf5"
 # targetidLCFile = "../data/temp.h5"
 ztflc_dir='/pscratch/sd/a/akim/ZTF/irsa.ipac.caltech.edu/data/ZTF/lc/lc_dr18/[01]/'
 
@@ -188,12 +188,15 @@ def targetidLC(overwrite=False):
 def linktargetidLCFile():
     f = h5py.File(targetidLCFile, 'w')
     grp=f.create_group('fields')
-    dirs = glob.glob(ztflc_dir+'field*')
+
+    dirs= glob.glob(lcdir+"0*.hdf5")
+
+    # dirs = glob.glob(ztflc_dir+'field*')
     tid=[]
     fid=[]
     for di in dirs:
         dibase  = os.path.basename(di)
-        dibase=dibase[5:]
+        dibase=dibase[:-5]
         grp[dibase] = h5py.ExternalLink(lcdir+"{}.hdf5".format(dibase), "/")
         for t in grp[dibase].keys():
             tid.append(t)
@@ -261,6 +264,6 @@ def main():
 
 if __name__ == '__main__':
     #targetidLC(overwrite=True)
-    # linktargetidLCFile()
+    linktargetidLCFile()
     sys.exit(countQSOwithData())
     # sys.exit(main())
