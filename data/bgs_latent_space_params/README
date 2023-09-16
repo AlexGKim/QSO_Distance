@@ -1,0 +1,27 @@
+## Example commands for opening a pickle file and accessing the data :
+
+import pickle
+
+% opening the pickle file
+with open("BGS_full_info.pkl",'rb') as f:
+	BGS = pickle.load(f)
+
+% looking up the file's keys
+BGS.keys()
+
+% get the information from a specific key
+BGS["GalaxyAE"].keys()
+
+% looking up the quantity of information about the latent space parameters
+BGS["GalaxyAE"]['latents'].shape
+
+
+## TO DO:
+
+1) get the latent space parameters from BGS_full_info.pkl and transform them into a PyTorch object; see https://pytorch.org/tutorials/beginner/nlp/pytorch_tutorial.html for documentation
+
+2)a) Plot the distributions for each parameter. 
+  b) Make a few 2D plots showing the scatter of one parameter versus another.
+
+3) use the scikit-learn tools for clustering (https://scikit-learn.org/stable/modules/clustering.html) in order to do a clustering analysis on the latent space parameters; i.e. answer the question "can we group the galaxies into different categories given the value of their latent space parameters" ?
+ 
