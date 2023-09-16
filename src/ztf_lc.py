@@ -20,7 +20,7 @@ Products
 
 1. DESI QSO list (fits)
 2. DESI QSO list (IPAC Table) : qsoToTable()
-3. QSO-matched ZTF object list (IPAC Table) : ZTF query through web interface tableToObjects()
+3. QSO-matched ZTF object list (IPAC Table) : ZTF query through web interface tableToObjects() run separately for each filter
 4. DESI QSO MJD of observation (hdf5) : all_DESI_MJDs()
 5. ZTF light curves (parquet) : Though overkill fastest to download all light curves rather than database query
 6. DESI QSO light curves ([field].hdf5) : Save subset of the light curves to separate file targetidLC()
@@ -34,8 +34,9 @@ radius_degree = radius_arcsec/3600
 lc_window = 5.5 # +/- days
 
 secretsFile = "/global/cfs/cdirs/desi/science/td/secrets/desi_pg.txt"
-uploadFile = "../upload.tbl"
-returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
+uploadFile = "../data/upload.tbl"
+#returnFile = "../data/ztf.ztf_objects_dr18_17743.tbl"
+returnFiles = ["../data/ztf.ztf_objects_dr18_4140.tbl","../data/ztf.ztf_objects_dr18_10711.tbl","../data/ztf.ztf_objects_dr18_31886.tbl"]
 datesFile = "../data/dates.hdf5"
 lcdir = "../data/lc/"
 targetidLCFile = lcdir+ "targetidLC.hdf5"
@@ -62,9 +63,14 @@ def get_desi_conn():
 def get_ztf_df():
     global ztfdf_global
     if ztfdf_global is None:
-        data = ascii.read(returnFile)
-        ztfdf_global = data.to_pandas()
-        ztfdf_global = ztfdf_global[ztfdf_global['oid'].notna()]  # prune out DESI objects not returned by ZTF
+        dum=[]
+        for returnFile in returnFiles:
+            data = ascii.read(returnFile)
+            data = data.to_pandas()
+            data=data[data['oid'].notna()] # prune out DESI objects not returned by ZTF 
+            dum.append(data)
+
+        ztfdf_global = pandas.concat(dum, ignore_index=True, copy=False)
     return ztfdf_global
 
 # Convert DESI fits file to IPAC Table
@@ -89,9 +95,10 @@ def qsoToTable():
 
 # Query the ZTF database
 # Have to run the query through the web interface as the API does not accept huge numbers of rows
+# Have to run this 3 times for each of the 3 filters
 # https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-dd
 def tableToObjects():
-    query = 'curl -o output.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec,field,ccdid,qid,ngoodobsrel -F outfmt=1 -Fconstraints=ngoodobsrel\>0 "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
+    query = 'curl -o output.tbl -F filename=@upload.tbl -F catalog=ztf_objects_dr18 -F spatial=Upload -F uradius=0.5 -F uradunits=arcsec -F one_to_one=1 -F selcols=oid,ra,dec,field,ccdid,qid,filtercode,ngoodobsrel -F outfmt=1 -F constraints=ngoodobsrel\>0 and filtercode=quote zgquote "https://irsa.ipac.caltech.edu/cgi-bin/Gator/nph-query"'
     return query
 
 # get the dates this was observed by DESI
@@ -165,17 +172,30 @@ def targetidLC(overwrite=False):
                 # gather LC information on each DESI targetid
                 for utid in jdf['targetid_01'].unique():
                     subjdf_ = jdf[jdf['targetid_01']==utid]
-                    grp = f_sub.create_group(str(utid))
+                    if str(utid) not in f_sub:
+                        grp = f_sub.create_group(str(utid))
+                    else:
+                        grp = f_sub[str(utid)]
                     
                     # collect for each filter
                     for fid_ in range(1,4):
-                        grp2 = grp.create_group(filteridtostr[fid_])
                         subsubjdf_ = subjdf_[subjdf_['filterid']==fid_]
-                        if subsubjdf_.shape[0] ==0:
-                            grp2.attrs.create('nepochs',0)
+                        if filteridtostr[fid_] not in grp:
+                         grp2 = grp.create_group(filteridtostr[fid_])
+                         grp2.attrs.create('nepochs',0)
                         else:
+                         grp2 = grp[filteridtostr[fid_]]
+                        
+                        nep=grp2.attrs.get('nepochs')
+
+                         #grp2 = grp.create_group(filteridtostr[fid_])
+
+                        if nep ==0 and subsubjdf_.shape[0] > 0:
+                            #grp2.attrs.create('nepochs',0)
+                        #else:
                             for r in subsubjdf_.itertuples():
-                                grp2.attrs.create('nepochs',r.nepochs)
+                                # grp2.attrs.create('nepochs',r.nepochs)
+                                grp2.attrs.modify("nepochs", r.nepochs)
                                 grp2.create_dataset('hmjd',data=r.hmjd)
                                 grp2.create_dataset('mag',data=r.mag)
                                 grp2.create_dataset('magerr',data=r.magerr)
@@ -260,7 +280,8 @@ def main():
     print(tidwithlc)
 
 if __name__ == '__main__':
-    #targetidLC(overwrite=True)
-    # linktargetidLCFile()
-    sys.exit(countQSOwithData())
+    # all_DESI_MJDs()
+    targetidLC(overwrite=True)
+    linktargetidLCFile()
+    # sys.exit(countQSOwithData())
     # sys.exit(main())
