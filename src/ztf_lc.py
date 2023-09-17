@@ -284,7 +284,7 @@ def main():
 
 if __name__ == '__main__':
     # all_DESI_MJDs()
-    targetidLC(overwrite=True)
+    # targetidLC(overwrite=True)
     linktargetidLCFile()
     # sys.exit(countQSOwithData())
     # sys.exit(main())
