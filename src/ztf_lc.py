@@ -56,7 +56,7 @@ def get_desi_conn():
         with open(secretsFile) as f:
             file = f.read()
             db_name, db_user, db_pwd, db_host = file.split()
-        conn_global = sqlalchemy.create_engine("postgresql+psycopg2://{}:{}@{}:{}/{}".format(db_user,db_pwd,"decatdb.lbl.gov",5432,"desidb"))
+        conn_global = sqlalchemy.create_engine("postgresql+psycopg2://{}:{}@{}:{}/{}".format(db_user,db_pwd,"decatdb.lbl.gov",5432,"desidb"), pool_size=10, max_overflow=20)
     return conn_global
 
 # ZTF information
@@ -108,7 +108,7 @@ def targetid_DESI_MJDs(targetid):
     # curr = """SELECT f.targetid, f.mjd, f.night
     #          FROM iron.healpix_expfibermap f
     #          WHERE {}""".format(lt)
-    curr = """SELECT f.targetid, f.mjd, f.night, r.z, r.zerr, r.zwarn,
+    curr = """SELECT f.targetid, f.mjd, f.night, r.z, r.zerr, r.zwarn
              FROM iron.healpix_expfibermap f
              INNER JOIN iron.healpix_redshifts r ON r.targetid=f.targetid
              INNER JOIN
@@ -121,7 +121,7 @@ def targetid_DESI_MJDs(targetid):
 def all_DESI_MJDs():
     df = get_ztf_df()
     ans = targetid_DESI_MJDs(df['targetid_01'].values)
-    store = pandas.HDFStore(datesFile,mode='w')
+    store = pandas.HDFStore(datesFile+"temp",mode='w')
     store['df']=ans
     store.close()
 
@@ -284,8 +284,8 @@ def main():
     print(tidwithlc)
 
 if __name__ == '__main__':
-    # all_DESI_MJDs()
+    all_DESI_MJDs()
     # targetidLC(overwrite=True)
-    linktargetidLCFile()
+    # linktargetidLCFile()
     # sys.exit(countQSOwithData())
     # sys.exit(main())
