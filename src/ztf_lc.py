@@ -108,8 +108,9 @@ def targetid_DESI_MJDs(targetid):
     # curr = """SELECT f.targetid, f.mjd, f.night
     #          FROM iron.healpix_expfibermap f
     #          WHERE {}""".format(lt)
-    curr = """SELECT f.targetid, f.mjd, f.night
+    curr = """SELECT f.targetid, f.mjd, f.night, r.z, r.zerr, r.zwarn,
              FROM iron.healpix_expfibermap f
+             INNER JOIN iron.healpix_redshifts r ON r.targetid=f.targetid
              INNER JOIN
              unnest(ARRAY[{}]) as tid
              ON tid=f.targetid""".format(lt)
